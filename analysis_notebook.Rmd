@@ -13,14 +13,7 @@ pacman::p_load(tidyverse, here)
 
 Get from series of files 
 
-```{r}
-# Read one file to get structure 
 
-
-
-first_file <- read_csv(here("csse_covid_19_data", "csse_covid_19_daily_reports", "01-22-2020.csv"))
-
-```
 ```{r}
 all_files <- 
   list.files(here("csse_covid_19_data", "csse_covid_19_daily_reports"), pattern = "\\.csv$")
@@ -66,7 +59,8 @@ tidied_data %>%
   summarise(total_confirmed = sum(n)) %>% 
   ungroup() %>% 
   ggplot(aes(x = date, y = total_confirmed)) + 
-  geom_point() 
+  geom_point()  + 
+  scale_y_log10()
   
 
 ```
@@ -74,10 +68,10 @@ tidied_data %>%
 Now after Feb 15
 
 
-```{r}
+```{r, fig.width = 12, fig.height = 9}
 tidied_data %>%
   filter(type == "confirmed") %>%  
-  filter(date > lubridate::dmy("15-02-2020")) %>% 
+#  filter(date > lubridate::dmy("15-02-2020")) %>% 
   group_by(date) %>% 
   summarise(total_confirmed = sum(n)) %>% 
   ungroup() %>% 
@@ -85,14 +79,36 @@ tidied_data %>%
   ggplot(aes(x = date, y = total_confirmed)) + 
   geom_point()  + 
   scale_y_log10(  
-    breaks = scales::trans_breaks("log10", function(x) 10^x),
-    labels = scales::trans_format("log10", scales::math_format(10^.x))
+    breaks = c(
+      2 * 10 ^ 3, 
+      5 * 10 ^ 3, 
+      1 * 10 ^ 4, 
+      2 * 10 ^ 4, 
+      5 * 10 ^ 4, 
+      1 * 10 ^ 5, 
+      2 * 10 ^ 5,
+      5 * 10 ^ 5,
+      1 * 10 ^ 6,
+      2 * 10 ^ 6,
+      5 * 10 ^ 6,
+      1 * 10 ^ 7,
+      2 * 10 ^ 7
+      ),
+    labels = c(
+      "2k", "5k",
+      "10k", "20k", "50k",
+      "100k", "200k", "500k",
+      "1M", "2M", "5M",
+      "10M", "20M"
+      
+    ), 
+    limits = c(2 * 10 ^ 3, 10 ^ 7)
     ) + 
   scale_x_date(date_breaks = "1 day") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   stat_smooth(
     aes(group = month),
-    method = "lm", se = FALSE, 
+    method = "lm", se = FALSE 
   ) +
   labs(
     x = "Date", y = "Total cases confirmed (log scale)",
@@ -104,5 +120,32 @@ tidied_data %>%
 ggsave(here("figures", "covid_19_confirmed_from15feb.png"), height = 20, width = 25, units = "cm", dpi = 300)
   
   
+
+```
+
+```{r}
+tidied_data %>%
+  filter(type == "confirmed") %>%  
+  filter(date > lubridate::dmy("15-02-2020")) %>% 
+  group_by(date) %>% 
+  summarise(total_confirmed = sum(n)) %>% 
+  ungroup() %>% 
+  mutate(month = lubridate::month(date, label = TRUE)) %>% 
+  ggplot(aes(x = date, y = total_confirmed)) + 
+  geom_point()  + 
+
+  
+  scale_x_date(date_breaks = "1 day") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  stat_smooth(
+    aes(group = month),
+    method = "lm", se = FALSE 
+  ) +
+  labs(
+    x = "Date", y = "Total cases confirmed (log scale)",
+    title = "Total worldwide COVID-19 cases confirmed by date after 15 Feb",
+    subtitle = "Log scale. Regression lines broken by month",
+    caption = "Source: Johns Hopkins CSSE"
+  )
 
 ```
