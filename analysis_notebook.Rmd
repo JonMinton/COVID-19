@@ -6,7 +6,7 @@ output: html_notebook
 COVID 19 number of cases over time 
 
 ```{r}
-pacman::p_load(tidyverse, here, ggrepel)
+pacman::p_load(tidyverse, here, ggrepel, lubridate, drc, aomisc)
 
 ```
 
@@ -232,3 +232,62 @@ ggsave(here("figures", "rate_of_increase_against_model_fit.png"), height = 15, w
 
 ```
 
+Look at rate of increase once 100 cases identified 
+
+
+```{r}
+tidied_data %>% 
+  filter(type == "confirmed") %>% 
+  group_by(higher, date) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  group_by(higher) %>% 
+  arrange(date) %>% 
+  filter(n >= 100) %>%
+  mutate(first_date = date[1]) %>% 
+  mutate(days_since_first = date - first_date) %>% 
+  mutate(max_days_since_first = max(days_since_first)) %>% 
+  ungroup() %>% 
+  mutate(country = fct_reorder(higher, desc(max_days_since_first))) %>%
+  filter(country != "Others") %>% 
+  ggplot(aes(x = days_since_first, y = n)) +
+  geom_line() + 
+  scale_y_log10(
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) + 
+  facet_wrap(~country) +
+  labs(
+    title = "Confirmed cases after first 100 cases",
+    subtitle = "Arranged by number of days since 100 or more cases",
+    x = "Days after 100 confirmed cases",
+    y = "Confirmed cases (log scale)", 
+    caption = "Source: Johns Hopkins CSSE"
+  )
+
+ggsave("figures/days_since_100.png", height = 20, width = 20, units = "cm", dpi = 300)
+
+```
+
+
+Let's try to model this (China and not China to start with)
+
+```{r}
+tidied_data %>% 
+  mutate(china = ifelse(higher == "Mainland China", "China", "Elsewhere")) %>% 
+  group_by(date, china, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  filter(n >= 100) %>% 
+  ggplot(aes(x = date, y = n, group = type, linetype = type)) + 
+  geom_line() + 
+  facet_wrap(~china) + 
+  scale_y_log10(
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  )
+
+```
+
+Let's try to model it using the approach suggested [here](https://www.statforbiology.com/nonlinearregression/usefulequations).
+In particular [asymptotic regression](https://www.statforbiology.com/nonlinearregression/usefulequations#asymptotic_regression_model)
