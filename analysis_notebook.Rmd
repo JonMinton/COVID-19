@@ -6,7 +6,7 @@ output: html_notebook
 COVID 19 number of cases over time 
 
 ```{r}
-pacman::p_load(tidyverse, here)
+pacman::p_load(tidyverse, here, ggrepel)
 
 ```
 
@@ -47,7 +47,7 @@ dtablk %>%
   gather(key = "type", value = n, Confirmed:Recovered) %>% 
   mutate(n = ifelse(is.na(n), 0, n)) %>% 
   mutate(date = lubridate::mdy(date)) %>% 
-  select(date, higher = `Province/State`, lower = `Country/Region`, type, n) %>% 
+  select(date, lower = `Province/State`, higher = `Country/Region`, type, n) %>% 
   mutate(type = tolower(type))
 ```
 
@@ -68,10 +68,10 @@ tidied_data %>%
 Now after Feb 15
 
 
-```{r, fig.width = 12, fig.height = 9}
+```{r, fig.width = 10, fig.height = 8}
 tidied_data %>%
   filter(type == "confirmed") %>%  
-#  filter(date > lubridate::dmy("15-02-2020")) %>% 
+  filter(date > lubridate::dmy("15-02-2020")) %>% 
   group_by(date) %>% 
   summarise(total_confirmed = sum(n)) %>% 
   ungroup() %>% 
@@ -79,36 +79,14 @@ tidied_data %>%
   ggplot(aes(x = date, y = total_confirmed)) + 
   geom_point()  + 
   scale_y_log10(  
-    breaks = c(
-      2 * 10 ^ 3, 
-      5 * 10 ^ 3, 
-      1 * 10 ^ 4, 
-      2 * 10 ^ 4, 
-      5 * 10 ^ 4, 
-      1 * 10 ^ 5, 
-      2 * 10 ^ 5,
-      5 * 10 ^ 5,
-      1 * 10 ^ 6,
-      2 * 10 ^ 6,
-      5 * 10 ^ 6,
-      1 * 10 ^ 7,
-      2 * 10 ^ 7
-      ),
-    labels = c(
-      "2k", "5k",
-      "10k", "20k", "50k",
-      "100k", "200k", "500k",
-      "1M", "2M", "5M",
-      "10M", "20M"
-      
-    ), 
-    limits = c(2 * 10 ^ 3, 10 ^ 7)
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
     ) + 
   scale_x_date(date_breaks = "1 day") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   stat_smooth(
     aes(group = month),
-    method = "lm", se = FALSE 
+    method = "lm", se = FALSE
   ) +
   labs(
     x = "Date", y = "Total cases confirmed (log scale)",
@@ -123,29 +101,134 @@ ggsave(here("figures", "covid_19_confirmed_from15feb.png"), height = 20, width =
 
 ```
 
-```{r}
-tidied_data %>%
-  filter(type == "confirmed") %>%  
-  filter(date > lubridate::dmy("15-02-2020")) %>% 
-  group_by(date) %>% 
-  summarise(total_confirmed = sum(n)) %>% 
-  ungroup() %>% 
-  mutate(month = lubridate::month(date, label = TRUE)) %>% 
-  ggplot(aes(x = date, y = total_confirmed)) + 
-  geom_point()  + 
+Let's look some more about what the data could show 
 
-  
-  scale_x_date(date_breaks = "1 day") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  stat_smooth(
-    aes(group = month),
-    method = "lm", se = FALSE 
+
+```{r, fig.height = 8, fig.width = 12}
+tidied_data %>% 
+  mutate(is_china = ifelse(higher == "Mainland China", "China", "Elsewhere")) %>% 
+  group_by(date, is_china, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = date, y =  n, group = is_china, linetype = is_china)) + 
+  facet_wrap(~type) + 
+  geom_line() +
+  scale_y_log10(    
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+) + labs(
+  x = "Date", y = "Number of cases (Log scale)",
+  title = "Confirmed cases, deaths, and recovered",
+  subtitle = "China and elsewhere",
+  caption = "Source: Johns Hopkins CSSE"
+) + 
+  scale_linetype_discrete("Location")
+
+ggsave(here("figures", "confirmed_deaths_recovered.png"), height = 15, width = 20, units = "cm", dpi = 300)
+
+```
+
+```{r}
+tidied_data %>% 
+  filter(type == "confirmed") %>% 
+  group_by(date, higher) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = date, y = n, group = higher, colour = higher == "Mainland China")) + 
+  geom_line() +
+  scale_y_log10(    
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+) + labs(
+  x = "Date", y = "Number of cases (Log scale)",
+  title = "Confirmed cases by country",
+  caption = "Source: Johns Hopkins CSSE"
+) 
+
+```
+
+```{r}
+# Countries with at least 100 confirmed cases on 8/3/20
+
+big_case_countries <- 
+  tidied_data %>% 
+    filter(type == "confirmed") %>% 
+    group_by(date, higher) %>% 
+    summarise(n = sum(n)) %>% 
+    ungroup()  %>% 
+    filter(date == max(date)) %>% 
+    arrange(desc(n)) %>% 
+    filter(n > 100) %>% 
+    pull(higher)
+
+tidied_data %>% 
+  mutate(country = case_when(
+    higher %in% big_case_countries ~ higher,
+    TRUE                           ~ "Other"
+    )
+  ) %>% 
+  filter(type == "confirmed") %>% 
+  group_by(date, country) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = date, y = n)) + 
+  geom_line() +
+  scale_y_log10(
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) +
+  facet_wrap(~country)
+
+ggsave(here("figures", "confirmed_cases_atleast100.png"), height = 25, width = 25, units = "cm", dpi = 300)
+
+
+```
+
+What's the gradient of increase for these countries since 1 March? 
+
+```{r}
+get_gradient_fit <- function(dta){
+  num_cases <- dta %>% 
+    filter(date == max(date)) %>% 
+    pull(n) 
+  
+  model <- lm(log(n) ~ date, data = dta)
+  slope <- coefficients(model)[["date"]]
+  rsq <- summary(model)$r.squared
+  
+  return(tibble(
+    num_cases, slope = slope, r_squared = rsq
+  ))
+}
+
+
+tidied_data %>% 
+  filter(date >= lubridate::dmy("29-02-20")) %>%
+  filter(higher %in% big_case_countries) %>% 
+  filter(type == "confirmed") %>% 
+  filter(higher != "Others") %>% 
+  group_by(date, higher) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  group_by(higher) %>% nest() %>% 
+  mutate(results = map(data, get_gradient_fit)) %>% 
+  select(higher, results) %>% 
+  unnest(results) %>% 
+  arrange(desc(slope)) %>% 
+  ggplot(aes(x = r_squared, y = slope, alpha = log(num_cases))) + 
+  geom_point() + 
+  theme(legend.position = "none") + 
+  geom_text_repel(aes(label = higher), alpha = 1) + 
   labs(
-    x = "Date", y = "Total cases confirmed (log scale)",
-    title = "Total worldwide COVID-19 cases confirmed by date after 15 Feb",
-    subtitle = "Log scale. Regression lines broken by month",
+    x = "R-squared (Higher= more log-linear)",
+    y = "Slope (Higher= faster % growth rates)",
+    title = "Steepness of case growth rate against model fit",
+    subtitle = "Countries with at least 100 cases on 8 March 2020. Darker dots = More cases",
     caption = "Source: Johns Hopkins CSSE"
   )
 
+ggsave(here("figures", "rate_of_increase_against_model_fit.png"), height = 15, width = 15, units = "cm", dpi = 300)
+
+
 ```
+
