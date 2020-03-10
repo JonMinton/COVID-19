@@ -6,7 +6,7 @@ output: html_notebook
 COVID 19 number of cases over time 
 
 ```{r}
-pacman::p_load(tidyverse, here, ggrepel, lubridate, drc, aomisc)
+pacman::p_load(lubridate,here,  ggrepel,tidyverse)
 
 ```
 
@@ -23,7 +23,7 @@ dtablk <- tibble(
 ) %>% 
   mutate(
     date = str_remove(filename, "\\.csv$"),
-    loc = here("csse_covid_19_data", "csse_covid_19_daily_reports", filename)
+    loc = paste(here("csse_covid_19_data", "csse_covid_19_daily_reports", filename), sep = "/")
   ) %>% 
   mutate(
     data = map(loc, read_csv)
