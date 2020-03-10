@@ -291,3 +291,33 @@ tidied_data %>%
 
 Let's try to model it using the approach suggested [here](https://www.statforbiology.com/nonlinearregression/usefulequations).
 In particular [asymptotic regression](https://www.statforbiology.com/nonlinearregression/usefulequations#asymptotic_regression_model)
+
+
+How about a time series approach? 
+
+```{r}
+tidied_data %>% 
+  filter(type == "confirmed") %>% 
+  group_by(higher, date) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  group_by(higher) %>% 
+  arrange(date) %>% 
+  filter(n >= 100) %>%
+  mutate(first_date = date[1]) %>% 
+  mutate(days_since_first = date - first_date) %>% 
+  mutate(max_days_since_first = max(days_since_first)) %>% 
+  ungroup() %>% 
+  mutate(log_n = log(n, 10)) %>% 
+  group_by(higher) %>% 
+  arrange(days_since_first) %>% 
+  mutate(ch_log_n = log_n - lag(log_n)) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = days_since_first, y = ch_log_n)) +
+  geom_point() + 
+  facet_wrap(~higher) +
+  stat_smooth(method = "auto", fullrange = TRUE)
+
+
+```
+
