@@ -129,25 +129,6 @@ ggsave(here("figures", "confirmed_deaths_recovered.png"), height = 15, width = 2
 ```
 
 ```{r}
-tidied_data %>% 
-  filter(type == "confirmed") %>% 
-  group_by(date, higher) %>% 
-  summarise(n = sum(n)) %>% 
-  ungroup() %>% 
-  ggplot(aes(x = date, y = n, group = higher, colour = higher == "Mainland China")) + 
-  geom_line() +
-  scale_y_log10(    
-    breaks = scales::trans_breaks("log10", function(x) 10^x),
-    labels = scales::trans_format("log10", scales::math_format(10^.x))
-) + labs(
-  x = "Date", y = "Number of cases (Log scale)",
-  title = "Confirmed cases by country",
-  caption = "Source: Johns Hopkins CSSE"
-) 
-
-```
-
-```{r}
 # Countries with at least 100 confirmed cases on 8/3/20
 
 big_case_countries <- 
@@ -218,6 +199,7 @@ tidied_data %>%
   ggplot(aes(x = r_squared, y = slope, alpha = log(num_cases))) + 
   geom_point() + 
   theme(legend.position = "none") + 
+  scale_x_continuous(limits = c(0.8, 1.0)) +
   geom_text_repel(aes(label = higher), alpha = 1) + 
   labs(
     x = "R-squared (Higher= more log-linear)",
@@ -238,6 +220,14 @@ Look at rate of increase once 100 cases identified
 ```{r}
 tidied_data %>% 
   filter(type == "confirmed") %>% 
+  mutate(
+    higher = case_when(
+      higher == "Iran (Islamic Republic of)" ~ "Iran",
+      higher == "Hong Kong SAR"  ~ "Hong Kong",
+      higher == "Republic of Korea" ~ "South Korea",
+      TRUE ~ higher
+    )
+  ) %>% 
   group_by(higher, date) %>% 
   summarise(n = sum(n)) %>% 
   ungroup() %>% 
@@ -319,5 +309,625 @@ tidied_data %>%
   stat_smooth(method = "auto", fullrange = TRUE)
 
 
-```
+```Show in New WindowClear OutputExpand/Collapse Output
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_character(),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_character(),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_character(),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_character(),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_character(),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_character(),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_character(),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_character(),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_character(),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_character(),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_character(),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double(),
+  Latitude = col_double(),
+  Longitude = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double(),
+  Latitude = col_double(),
+  Longitude = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double(),
+  Latitude = col_double(),
+  Longitude = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double(),
+  Latitude = col_double(),
+  Longitude = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double(),
+  Latitude = col_double(),
+  Longitude = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double(),
+  Latitude = col_double(),
+  Longitude = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double(),
+  Latitude = col_double(),
+  Longitude = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double(),
+  Latitude = col_double(),
+  Longitude = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double(),
+  Latitude = col_double(),
+  Longitude = col_double()
+)
+Parsed with column specification:
+cols(
+  `Province/State` = col_character(),
+  `Country/Region` = col_character(),
+  `Last Update` = col_datetime(format = ""),
+  Confirmed = col_double(),
+  Deaths = col_double(),
+  Recovered = col_double(),
+  Latitude = col_double(),
+  Longitude = col_double()
+)
+R Console
+date
+<chr>
+data
+<list>
+num_var
+<dbl>
+01-22-2020	<S3: spec_tbl_df>	6		
+01-23-2020	<S3: spec_tbl_df>	6		
+01-24-2020	<S3: spec_tbl_df>	6		
+01-25-2020	<S3: spec_tbl_df>	6		
+01-26-2020	<S3: spec_tbl_df>	6		
+01-27-2020	<S3: spec_tbl_df>	6		
+01-28-2020	<S3: spec_tbl_df>	6		
+01-29-2020	<S3: spec_tbl_df>	6		
+01-30-2020	<S3: spec_tbl_df>	6		
+01-31-2020	<S3: spec_tbl_df>	6		
+Next12345Previous
+1-10 of 49 rows
+tbl_df
+49 x 3
+date
+<chr>
+data
+<list>
+num_var
+<dbl>
+01-22-2020	<S3: spec_tbl_df>	6		
+01-23-2020	<S3: spec_tbl_df>	6		
+01-24-2020	<S3: spec_tbl_df>	6		
+01-25-2020	<S3: spec_tbl_df>	6		
+01-26-2020	<S3: spec_tbl_df>	6		
+01-27-2020	<S3: spec_tbl_df>	6		
+01-28-2020	<S3: spec_tbl_df>	6		
+01-29-2020	<S3: spec_tbl_df>	6		
+01-30-2020	<S3: spec_tbl_df>	6		
+01-31-2020	<S3: spec_tbl_df>	6		
+Next12345Previous
+1-10 of 49 rows
+Show in New WindowClear OutputExpand/Collapse Output
+
+Show in New WindowClear OutputExpand/Collapse Output
+
+Show in New WindowClear OutputExpand/Collapse Output
+	
+Transformation introduced infinite values in continuous y-axis
+
+Show in New WindowClear OutputExpand/Collapse Output
+	
+Transformation introduced infinite values in continuous y-axis
+
+Show in New WindowClear OutputExpand/Collapse Output
+	
+geom_path: Each group consists of only one observation. Do you need to adjust the group aesthetic?
+geom_path: Each group consists of only one observation. Do you need to adjust the group aesthetic?
+geom_path: Each group consists of only one observation. Do you need to adjust the group aesthetic?
+	
+Transformation introduced infinite values in continuous y-axis
+
+Show in New WindowClear OutputExpand/Collapse Output
+	
+Removed 3 rows containing missing values (geom_point).
+Removed 3 rows containing missing values (geom_text_repel).
+
+Show in New WindowClear OutputExpand/Collapse Output
+	
+Don't know how to automatically pick scale for object of type difftime. Defaulting to continuous.
+geom_path: Each group consists of only one observation. Do you need to adjust the group aesthetic?
+geom_path: Each group consists of only one observation. Do you need to adjust the group aesthetic?
+geom_path: Each group consists of only one observation. Do you need to adjust the group aesthetic?
+geom_path: Each group consists of only one observation. Do you need to adjust the group aesthetic?
+geom_path: Each group consists of only one observation. Do you need to adjust the group aesthetic?
+geom_path: Each group consists of only one observation. Do you need to adjust the group aesthetic?
+
+Show in New WindowClear OutputExpand/Collapse Output
+
+Show in New WindowClear OutputExpand/Collapse Output
+	
+Don't know how to automatically pick scale for object of type difftime. Defaulting to continuous.
+`geom_smooth()` using method = 'loess' and formula 'y ~ x'
+	
+Removed 26 rows containing non-finite values (stat_smooth).
+span too small. fewer data values than degrees of freedom.
+at 0.995
+radius 2.5e-005
+all data on boundary of neighborhood. make span bigger
+pseudoinverse used at 0.995
+neighborhood radius 0.005
+reciprocal condition number 1
+at 2.005
+radius 2.5e-005
+all data on boundary of neighborhood. make span bigger
+There are other near singularities as well. 2.5e-005
+zero-width neighborhood. make span bigger
+zero-width neighborhood. make span bigger
+Computation failed in `stat_smooth()`: NA/NaN/Inf in foreign function call (arg 5)
+span too small. fewer data values than degrees of freedom.
+pseudoinverse used at 0.985
+neighborhood radius 2.015
+reciprocal condition number 0
+There are other near singularities as well. 4.0602
+span too small. fewer data values than degrees of freedom.
+pseudoinverse used at 0.985
+neighborhood radius 2.015
+reciprocal condition number 0
+There are other near singularities as well. 4.0602
+span too small. fewer data values than degrees of freedom.
+pseudoinverse used at 0.985
+neighborhood radius 2.015
+reciprocal condition number 0
+There are other near singularities as well. 4.0602
+span too small. fewer data values than degrees of freedom.
+pseudoinverse used at 0.985
+neighborhood radius 2.015
+reciprocal condition number 0
+There are other near singularities as well. 4.0602
+span too small. fewer data values than degrees of freedom.
+pseudoinverse used at 0.985
+neighborhood radius 2.015
+reciprocal condition number 0
+There are other near singularities as well. 4.0602
+span too small. fewer data values than degrees of freedom.
+pseudoinverse used at 0.985
+neighborhood radius 2.015
+reciprocal condition number 0
+There are other near singularities as well. 4.0602
+span too small. fewer data values than degrees of freedom.
+pseudoinverse used at 0.985
+neighborhood radius 2.015
+reciprocal condition number 0
+There are other near singularities as well. 4.0602
+span too small. fewer data values than degrees of freedom.
+pseudoinverse used at 0.985
+neighborhood radius 2.015
+reciprocal condition number 0
+There are other near singularities as well. 4.0602
+span too small. fewer data values than degrees of freedom.
+pseudoinverse used at 0.98
+neighborhood radius 2.02
+reciprocal condition number 0
+There are other near singularities as well. 4.0804
+span too small. fewer data values than degrees of freedom.
+pseudoinverse used at 0.98
+neighborhood radius 2.02
+reciprocal condition number 0
+There are other near singularities as well. 4.0804
+span too small. fewer data values than degrees of freedom.
+pseudoinverse used at 0.98
+neighborhood radius 2.02
+reciprocal condition number 0
+There are other near singularities as well. 4.0804
+span too small. fewer data values than degrees of freedom.
+pseudoinverse used at 0.98
+neighborhood radius 2.02
+reciprocal condition number 0
+There are other near singularities as well. 4.0804
+Removed 26 rows containing missing values (geom_point).
+Removed 1106 rows containing missing values (geom_smooth).
+
 
