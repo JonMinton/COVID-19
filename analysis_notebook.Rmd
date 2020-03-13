@@ -343,9 +343,13 @@ tidied_data %>%
   ) +
   labs(
     y = "Number of cases", 
-    x = "Date"
+    x = "Date",
+    title = "Confirmed, Recovered, Deaths",
+    caption = "Source: Johns Hopkins CSSE"
   )
 
+
+ggsave(here("figures", "confirmed_deaths_recovered_china_elsewhere.png"), height = 20, width = 30, units = "cm", dpi = 300)
 ```
 
 
