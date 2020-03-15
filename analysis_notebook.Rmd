@@ -138,7 +138,8 @@ tidied_data %>%
   subtitle = "Hubei, Rest of China, and Rest of World",
   caption = "Source: Johns Hopkins CSSE"
 ) + 
-  scale_linetype_discrete("Location")
+  scale_linetype_discrete("Location") + 
+  theme_minimal()
 
 ggsave(here("figures", "confirmed_deaths_recovered.png"), height = 15, width = 20, units = "cm", dpi = 300)
 
@@ -208,7 +209,10 @@ tidied_data %>%
   summarise(n = sum(n)) %>% 
   ungroup() %>% 
   group_by(higher) %>% nest() %>% 
-  mutate(results = map(data, get_gradient_fit)) %>% 
+  mutate(results = map(data, possibly(get_gradient_fit, otherwise = NA_character_))) %>%
+  mutate(results_class = map(results, class)) %>% 
+  mutate(results_length = map_dbl(results, length)) %>% 
+  filter(results_length == 3) %>% 
   select(higher, results) %>% 
   unnest(results) %>% 
   arrange(desc(slope)) %>% 
@@ -293,11 +297,11 @@ days_since_data <-
 days_since_data %>% 
   ggplot(aes(x = days_since_first, y = n, group = country, colour = country_label)) +
   geom_line() + 
-  ggrepel::geom_label_repel(aes(label = country_label), show.legend = FALSE, segment.color = "grey", nudge_x = 10,  
+  ggrepel::geom_text_repel(aes(label = country_label), show.legend = FALSE, segment.color = "grey", nudge_x = 10,  
                             data = days_since_data %>% 
                               group_by(country) %>% 
                               filter(days_since_first == max(days_since_first)) %>% 
-                              filter(days_since_first >= 5)
+                              filter(days_since_first >= 10)
                             ) +
   scale_y_log10(
     breaks = scales::trans_breaks("log10", function(x) 10^x),
@@ -305,14 +309,15 @@ days_since_data %>%
   ) + 
   labs(
     title = "Confirmed cases after first 100 cases",
-    subtitle = "Arranged by number of days since 100 or more cases. Countries with 5 or more days labelled",
+    subtitle = "Arranged by number of days since 100 or more cases. Countries with 10 or more days labelled",
     x = "Days after 100 confirmed cases",
     y = "Confirmed cases (log scale)", 
     caption = "Source: Johns Hopkins CSSE"
   ) +
+  theme_minimal() +
   theme(
     legend.position = "none"
-  )
+  ) 
 
 ggsave(here("figures", "days_since_100_oneplot.png"), height = 15, width = 25, units = "cm", dpi = 300)
 
@@ -353,3 +358,167 @@ ggsave(here("figures", "confirmed_deaths_recovered_china_elsewhere.png"), height
 ```
 
 
+# Lagged association between deaths and confirmed cases, Hubei
+
+For how many days is there a deaths data series? (from 10^2 cases?) 
+
+Then work out how many days confirmed cases to include 
+
+```{r}
+tidied_data %>% 
+  mutate(
+    place_category = case_when(
+      higher == "China" & lower == "Hubei" ~ "Hubei, China",
+      higher == "China" & lower != "Hubei" ~ "Rest of China",
+      TRUE                                 ~ "Rest of World"
+    )
+  ) %>% 
+  filter(type != "recovered") %>% 
+  group_by(date, place_category, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  filter(place_category == "Hubei, China") %>% 
+  group_by(type) %>% 
+  arrange(date) %>% 
+  mutate(days_since_start = date - date[1]) %>% 
+  ggplot(aes(x = days_since_start, y = n, linetype = type, group = type)) +
+  geom_line() + 
+  scale_y_log10(
+    breaks = 10^(1:7), 
+    minor_breaks = 10 ^ seq(1, 7, by = 0.1),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+    
+  )
+
+```
+Exponent looks like 4.84 for confirmed cases, and 3.50 for deaths (at end of series). This gives a case fatality rate of around 4.6%, so slightly higher than before (based on slightly earlier data, and for whole of China).
+
+Let's check this by overlaying both 
+
+
+```{r}
+tidied_data %>% 
+  mutate(
+    place_category = case_when(
+      higher == "China" & lower == "Hubei" ~ "Hubei, China",
+      higher == "China" & lower != "Hubei" ~ "Rest of China",
+      TRUE                                 ~ "Rest of World"
+    )
+  ) %>% 
+  filter(type != "recovered") %>% 
+  group_by(date, place_category, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  filter(place_category == "Hubei, China") %>% 
+  group_by(type) %>% 
+  arrange(date) %>% 
+  mutate(days_since_start = date - date[1]) %>%
+  ungroup() %>% 
+  mutate(log_n = log(n, 10)) %>%
+  ggplot(aes(x = days_since_start, y = log_n, linetype = type, group = type)) +
+  geom_line() +
+  geom_line(aes(x = days_since_start, y = log_n - (4.84 - 3.50)),
+            colour = "red", linetype = "dotdash",
+            data = 
+              tidied_data %>% 
+                mutate(
+                  place_category = case_when(
+                    higher == "China" & lower == "Hubei" ~ "Hubei, China",
+                    higher == "China" & lower != "Hubei" ~ "Rest of China",
+                    TRUE                                 ~ "Rest of World"
+                  )
+                ) %>% 
+                filter(type == "confirmed") %>% 
+                group_by(date, place_category, type) %>% 
+                summarise(n = sum(n)) %>% 
+                ungroup() %>% 
+                filter(place_category == "Hubei, China") %>% 
+                group_by(type) %>% 
+                arrange(date) %>% 
+                mutate(days_since_start = date - date[1]) %>%
+                ungroup() %>% 
+                mutate(log_n = log(n, 10))
+              )
+
+```
+
+Let's see what a linear regression of deaths on confirmed cases predicts 
+
+```{r}
+hb_log_mod <- 
+tidied_data %>% 
+  mutate(
+    place_category = case_when(
+      higher == "China" & lower == "Hubei" ~ "Hubei, China",
+      higher == "China" & lower != "Hubei" ~ "Rest of China",
+      TRUE                                 ~ "Rest of World"
+    )
+  ) %>% 
+  filter(type != "recovered") %>% 
+  group_by(date, place_category, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  filter(place_category == "Hubei, China") %>% 
+  select(-place_category) %>% 
+  spread(type, n) %>% 
+  lm(log(deaths, 10) ~ log(confirmed, 10), data =. ) 
+
+hb_log_mod %>% 
+  summary()
+
+```
+```{r}
+wide_hb_data <-  
+  tidied_data %>% 
+    mutate(
+      place_category = case_when(
+        higher == "China" & lower == "Hubei" ~ "Hubei, China",
+        higher == "China" & lower != "Hubei" ~ "Rest of China",
+        TRUE                                 ~ "Rest of World"
+      )
+    ) %>% 
+    filter(type != "recovered") %>% 
+    group_by(date, place_category, type) %>% 
+    summarise(n = sum(n)) %>% 
+    ungroup() %>% 
+    filter(place_category == "Hubei, China") %>% 
+    select(-place_category) %>% 
+    spread(type, n) 
+
+wide_hb_data  
+```
+
+
+```{r}
+wide_hb_data %>% 
+  mutate(prediction = 10 ^ predict(hb_log_mod, .)) %>% 
+  mutate(eyeballing = confirmed *  10 ^ -(4.84 - 3.50)) %>% 
+  gather(-date, key = "type", value = "n") %>% 
+  mutate(type = case_when(
+    type == "confirmed" ~ "Confirmed Cases", 
+    type == "deaths"   ~ "Confirmed Deaths",
+    type == "prediction" ~ "Predicted Deaths (Linear regression)",
+    type == "eyeballing" ~ "Predicted Deaths (Eyeballing latest values)"
+  )) %>% 
+  ggplot(aes(x = date, y= n, linetype = type, colour = type)) + 
+  geom_line() +
+  scale_y_log10(
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) +
+  scale_colour_manual(values = c("black", "black", "red", "green")) +
+  scale_linetype_manual(values = c("solid", "dotdash", "dashed", "dashed")) + 
+  labs(
+    title = "Relationship between confirmed cases and confirmed deaths, Hubei, China",
+    caption = "Model prediction formula within lm: log(deaths, 10) ~ log(confirmed, 10)",
+    subtitle = "Predicted mortality rate: 4.3%, Adjusted R-squared of fit: 0.98",
+    x = "Date", 
+    y = "Number of cases",
+    linetype = "Case/Prediction type",
+    colour = "Case/Prediction type"
+  ) + 
+  theme_minimal()
+
+ggsave(here("figures", "hubei_case_mort_pred.png"), height = 15, width = 25, units = "cm")
+
+```
