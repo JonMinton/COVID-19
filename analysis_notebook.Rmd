@@ -1,6 +1,8 @@
 ---
-title: "Get time series "
-output: html_notebook
+title: 'Get time series '
+output:
+  html_document:
+    df_print: paged
 ---
 
 COVID 19 number of cases over time 
@@ -85,7 +87,7 @@ tidied_data %>%
   group_by(date) %>% 
   summarise(total_confirmed = sum(n)) %>% 
   ungroup() %>% 
-  mutate(month = lubridate::month(date, label = TRUE)) %>% 
+  mutate(week = lubridate::week(date)) %>% 
   ggplot(aes(x = date, y = total_confirmed)) + 
   geom_point()  + 
   scale_y_log10(  
@@ -95,13 +97,13 @@ tidied_data %>%
   scale_x_date(date_breaks = "1 day") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   stat_smooth(
-    aes(group = month),
+    aes(group = week),
     method = "lm", se = FALSE
   ) +
   labs(
     x = "Date", y = "Total cases confirmed (log scale)",
     title = "Total worldwide COVID-19 cases confirmed by date after 15 Feb",
-    subtitle = "Log scale. Regression lines broken by month",
+    subtitle = "Log scale. Regression lines broken by week",
     caption = "Source: Johns Hopkins CSSE"
   )
 
@@ -204,7 +206,7 @@ tidied_data %>%
   filter(date >= lubridate::dmy("29-02-20")) %>%
   filter(higher %in% big_case_countries) %>% 
   filter(type == "confirmed") %>% 
-  filter(higher != "Others") %>% 
+  filter(!(higher %in% c("Others","Cruise Ship"))) %>% 
   group_by(date, higher) %>% 
   summarise(n = sum(n)) %>% 
   ungroup() %>% 
@@ -215,11 +217,12 @@ tidied_data %>%
   filter(results_length == 3) %>% 
   select(higher, results) %>% 
   unnest(results) %>% 
+  mutate(is_china = higher == "China") %>% 
   arrange(desc(slope)) %>% 
   ggplot(aes(x = r_squared, y = slope, alpha = log(num_cases))) + 
   geom_point() + 
   theme(legend.position = "none") + 
-  scale_x_continuous(limits = c(0.8, 1.0)) +
+  scale_x_continuous(limits = c(0.7, 1.0)) +
   geom_text_repel(aes(label = higher), alpha = 1) + 
   labs(
     x = "R-squared (Higher= more log-linear)",
@@ -229,7 +232,7 @@ tidied_data %>%
     caption = "Source: Johns Hopkins CSSE"
   )
 
-ggsave(here("figures", "rate_of_increase_against_model_fit.png"), height = 15, width = 15, units = "cm", dpi = 300)
+ggsave(here("figures", "rate_of_increase_against_model_fit.png"), height = 20, width = 20, units = "cm", dpi = 300)
 
 
 ```
@@ -520,5 +523,54 @@ wide_hb_data %>%
   theme_minimal()
 
 ggsave(here("figures", "hubei_case_mort_pred.png"), height = 15, width = 25, units = "cm")
+
+```
+
+
+
+And in reverse? 
+
+```{r}
+hb_log_mod_rev <- 
+tidied_data %>% 
+  mutate(
+    place_category = case_when(
+      higher == "China" & lower == "Hubei" ~ "Hubei, China",
+      higher == "China" & lower != "Hubei" ~ "Rest of China",
+      TRUE                                 ~ "Rest of World"
+    )
+  ) %>% 
+  filter(type != "recovered") %>% 
+  group_by(date, place_category, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  filter(place_category == "Hubei, China") %>% 
+  select(-place_category) %>% 
+  spread(type, n) %>% 
+  lm(log(confirmed, 10) ~ log(deaths, 10), data =. ) 
+
+hb_log_mod_rev %>% 
+  summary()
+
+
+```
+
+So this can be used to predict the number of confirmed cases against the number of deaths if the correspondence between confirmed cases and confirmed deaths were the same as in the Hubei. 
+
+```{r}
+tidied_data %>% 
+  filter(higher == "United Kingdom") %>% 
+  filter(type != "recovered") %>% 
+  group_by(date, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  spread(type, n)  %>% 
+  filter(deaths >= 5) %>% 
+  mutate(
+    predicted_confirmed = 10^predict(hb_log_mod_rev, newdata = .)
+  ) %>% 
+  gather(key = "type", value = "n", -date) %>% 
+  ggplot(aes(x = date, y = n, group = type, shape = type, colour = type)) + 
+  geom_line() 
 
 ```
