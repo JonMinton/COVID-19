@@ -570,7 +570,21 @@ tidied_data %>%
     predicted_confirmed = 10^predict(hb_log_mod_rev, newdata = .)
   ) %>% 
   gather(key = "type", value = "n", -date) %>% 
-  ggplot(aes(x = date, y = n, group = type, shape = type, colour = type)) + 
-  geom_line() 
+  ggplot(aes(x = date, y = n, group = type, linetype = type, colour = type)) + 
+  geom_line()  + 
+  scale_colour_manual(values = c("black", "red", "black")) + 
+  scale_linetype_manual(values = c("solid", "solid", "dashed")) + 
+  scale_y_log10(breaks = c(5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000)) +
+  labs(
+    x = "Date",
+    y = "Number of cases (log scale)",
+    title = "UK: Confirmed cases, confirmed deaths,
+    and predicted number of cases based on number of deaths",
+    subtitle = "Predicted number of cases made by assuming the correspondence between confirmed cases and
+    confirmed deaths observed in Hubei, China, also applies to other countries",
+    caption = "From first date where five or more cumulative confirmed deaths were recorded in the UK"
+  )
+
+ggsave(here("figures", "uk_confirmed_predicted_from_hubei.png"), height = 15, width = 20, units = "cm", dpi = 300)
 
 ```
