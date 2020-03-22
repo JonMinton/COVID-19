@@ -228,7 +228,7 @@ tidied_data %>%
     x = "R-squared (Higher= more log-linear)",
     y = "Slope (Higher= faster % growth rates)",
     title = "Steepness of case growth rate against model fit",
-    subtitle = "Countries with at least 100 cases on 8 March 2020. Darker dots = More cases",
+    subtitle = glue::glue("Countries with at least 100 cases on {today()}. Darker dots = More cases"),
     caption = "Source: Johns Hopkins CSSE"
   )
 
