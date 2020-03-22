@@ -1,0 +1,342 @@
+---
+title: "Animated Slope and Log-linearity plot"
+output: html_notebook
+---
+
+# Introduction
+
+This notebook will produce an animated plot. 
+
+
+# Preparation 
+
+```{r}
+pacman::p_load(
+  lubridate,
+  here,  
+  ggrepel,
+  tidyverse, 
+  gganimate,
+  wbstats
+  )
+
+```
+
+Now use time series and link to file 
+
+```{r}
+url_confirmed <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv"
+url_deaths <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Deaths.csv"
+url_recovered <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Recovered.csv"
+
+```
+
+
+```{r}
+n_confirmed <- 
+  read_csv(url_confirmed) %>% 
+    select(-Lat, -Long) %>% 
+    rename(
+      lower = `Province/State`,
+      higher = `Country/Region`
+    ) %>% 
+    gather(-lower, -higher, key = "date", value = "n_confirmed") %>% 
+    mutate(date = mdy(date))
+
+n_recovered <- 
+  read_csv(url_recovered) %>% 
+    select(-Lat, -Long) %>% 
+    rename(
+      lower = `Province/State`,
+      higher = `Country/Region`
+    ) %>% 
+    gather(-lower, -higher, key = "date", value = "n_recovered") %>% 
+    mutate(date = mdy(date))
+
+n_deaths <- 
+  read_csv(url_deaths) %>% 
+    select(-Lat, -Long) %>% 
+    rename(
+      lower = `Province/State`,
+      higher = `Country/Region`
+    ) %>% 
+    gather(-lower, -higher, key = "date", value = "n_deaths") %>% 
+    mutate(date = mdy(date))
+
+tidied_data <- 
+  reduce(.x = list(n_confirmed, n_recovered, n_deaths), full_join, by = c("lower", "higher", "date")) %>% 
+    gather(key = "type", value = "n", n_confirmed:n_deaths) %>% 
+    mutate(type = str_replace(type, pattern = "^n_", ""))
+
+
+```
+
+```{r}
+
+big_case_countries <- 
+  tidied_data %>% 
+    filter(type == "confirmed") %>% 
+    group_by(date, higher) %>% 
+    summarise(n = sum(n)) %>% 
+    ungroup()  %>% 
+    filter(date == max(date)) %>% 
+    arrange(desc(n)) %>% 
+    filter(n > 100) %>% 
+    pull(higher)
+
+```
+
+
+
+For each day since the 15 Februrary, I want to find 
+
+1. Those countries where there have been at least 100 cases for at least 5 days. 
+2. For each of these I want to extract 
+    i. The number of cases 
+    ii. The gradient
+    iii. The log linearity. 
+3. I would like a label too (Country code)
+4. Let's size by population too
+5. And colour by continent 
+
+
+Country to continent lookup 
+
+```{r}
+dta_country_continent_lookup <- read_csv("https://datahub.io/JohnSnowLabs/country-and-continent-codes-list/r/country-and-continent-codes-list-csv.csv") %>% 
+  mutate(
+    Continent_Code = case_when(
+      is.na(Continent_Code) ~ "NA", # NA was mis-parsed as NA rather than "NA" - North America!
+      TRUE                  ~ Continent_Code
+    )
+  )
+
+# There's some matching work required 
+tidied_country_continent_lookup <- 
+  dta_country_continent_lookup %>% 
+    mutate(
+      stripped_name = map_chr(Country_Name, str_extract, pattern = "^[^,]+"),
+      special_name  = case_when(
+        Country_Name == "Taiwan"                                        ~ "Taiwan*",
+        Country_Name == "Korea, Democratic People's Republic of"        ~ "Korea, North",
+        Country_Name == "Korea, Republic of"                            ~ "Korea, South",
+        TRUE                                                            ~ NA_character_
+      ),
+      name_to_match = coalesce(special_name, stripped_name) # First special name, then if NA stripped name
+    ) 
+
+tidied_country_continent_lookup
+```
+
+And population (using wbstats package)
+
+```{r, cache = TRUE}
+
+pop_wb <- wb(indicator = "SP.POP.TOTL") 
+
+
+```
+
+```{r}
+
+code_population <- 
+  pop_wb %>%
+    mutate(date = as.numeric(date)) %>% 
+    group_by(iso3c) %>% 
+    filter(date == max(date)) %>% 
+    ungroup() %>% 
+    select(country_code = iso3c, population = value)
+
+code_population
+
+```
+
+So, let's try to match on this 
+
+```{r}
+country_tidied_data <- 
+  tidied_data %>% 
+  group_by(higher, date, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  rename(country = higher)
+
+country_tidied_data
+```
+
+Now let's try to join and see what still remains 
+
+
+```{r}
+
+# tidied_country_continent_lookup %>% 
+#   left_join(code_population, by = c("Three_Letter_Country_Code" = "country_code"))
+
+country_continent_tidied_data <- 
+  country_tidied_data %>% 
+    left_join(
+      tidied_country_continent_lookup %>% 
+        left_join(code_population, by = c("Three_Letter_Country_Code" = "country_code")), 
+      by = c("country" = "name_to_match")) %>% 
+    select(
+      country, 
+      continent = Continent_Name,
+      population,
+      date, type, n
+    )
+
+country_continent_tidied_data
+```
+
+I now want a sequence of dates from a first date. This will then be used to filter the above, and perform regression analyses on this 
+
+```{r}
+min_cases <- 100 
+# Filter the dataframe to between specified dates and where minimum number of cases has been observed
+filter_df <- function(first_date, last_date, df, min_cases = 20){
+  out <- 
+    df %>% 
+      filter(between(date, first_date, last_date)) %>% 
+      filter(n >= min_cases)
+  
+  out  
+}
+
+# The get_gradient_fit function used earlier 
+
+get_gradient_fit <- function(dta){
+  num_cases <- dta %>% 
+    filter(date == max(date)) %>% 
+    pull(n) 
+  
+  model <- lm(log(n) ~ date, data = dta)
+  slope <- coefficients(model)[["date"]]
+  rsq <- summary(model)$r.squared
+  
+  return(tibble(
+    num_cases, slope = slope, r_squared = rsq
+  ))
+}
+
+# First date: 1 February 
+# Last date: Today (programmatic)
+  
+stats_df_to_use <- 
+  crossing(  
+    first_date = ymd("2020-02-01"),
+    last_date  = seq(ymd("2020-02-01"), ymd(today()), by = '1 day'),
+    country_continent_tidied_data %>% 
+      filter(type == "confirmed") %>% 
+      group_by(country, continent, population) %>% 
+      nest() 
+  ) %>% 
+    mutate(df_filtered = pmap(list(first_date, last_date, data, min_cases = min_cases), filter_df)) %>% 
+    mutate(
+      nrow_data           = map_dbl(data,        nrow),
+      nrow_filtered_data  = map_dbl(df_filtered, nrow) 
+    ) %>% 
+    arrange(country, last_date) %>% 
+    filter(nrow_filtered_data >= 5) %>% 
+    mutate(stats = map(df_filtered, get_gradient_fit)) %>% 
+    select(last_date, country, population, continent, stats) %>% 
+    unnest(stats)
+
+stats_df_to_use
+
+```
+
+To start to adapt, let's break this into the following steps:
+
+1. Colour by continent (shape too)
+2. For two different end dates 
+
+
+
+```{r}
+
+
+
+stats_df_to_use %>% 
+#  filter(last_date %in% c(ymd("2020-03-01"), today())) %>% 
+  filter(!is.na(continent)) %>% 
+  ggplot(aes(x = r_squared, y = slope, colour = continent, size = population, shape = continent, alpha = log(num_cases))) + 
+  geom_point() + 
+  scale_alpha(guide = "none") +
+#  theme(legend.position = "none") + 
+  scale_x_continuous(limits = c(0.4, 1.0)) +
+#  facet_wrap(~last_date) +
+#  geom_text_repel(aes(label = country), alpha = 1) + 
+  labs(
+    x = "R-squared (Higher= more log-linear)",
+    y = "Slope (Higher= faster % growth rates)",
+    title = "Steepness of case growth rate against model fit",
+    subtitle = glue::glue("Countries with at least {min_cases} cases on {today()}. Darker dots = More cases"),
+    caption = "Source: Johns Hopkins CSSE"
+  )
+
+# ggsave(here("figures", "rate_of_increase_against_model_fit.png"), height = 20, width = 20, units = "cm", dpi = 300)
+
+
+```
+
+That all works, now to add last_date as a frame 
+
+```{r}
+
+fig_to_animate <- 
+  stats_df_to_use %>% 
+  mutate(
+    country_label = ifelse(population >= 10^7, country, NA)
+  ) %>% 
+    filter(!is.na(continent)) %>% 
+    ggplot(aes(x = r_squared, y = slope, colour = continent, size = population, shape = continent, alpha = log(num_cases))) + 
+    geom_point() + 
+    scale_alpha(guide = "none") +
+    scale_size(guide = "none") + 
+  #  theme(legend.position = "none") + 
+    scale_x_continuous(limits = c(0.4, 1.0)) +
+  #  facet_wrap(~last_date) +
+  geom_text(aes(label = country_label), alpha = 1, colour = "black") + 
+    labs(
+      x = "R-squared (Higher= more log-linear)",
+      y = "Slope (Higher= faster % growth rates)",
+      title = "Steepness of case growth rate against model fit on {frame_time}",
+      subtitle = glue::glue("Countries with at least {min_cases} confirmed cases. Darker dots = More cases"),
+      caption = "Source: Johns Hopkins CSSE"
+    ) +
+    transition_time(
+      last_date
+    ) +
+    # transition_states(
+    #   last_date,
+    #   transition_length = 2,
+    #   state_length = 10
+    # ) +
+    # transition_components(
+    #   last_date, 
+    #   enter_length = 5, 
+    #   exit_length = 5
+    # ) + 
+    ease_aes('cubic-in-out')
+
+```
+
+
+```{r}
+animate(
+  fig_to_animate,
+  start_pause = 20, 
+  end_pause = 20,
+  fps = 10,
+  nframes = 300
+)
+
+```
+
+
+```{r}
+anim_save(here("figures", "linearity_growth_animation.gif"))
+
+```
+
+

@@ -202,6 +202,7 @@ get_gradient_fit <- function(dta){
 }
 
 
+
 tidied_data %>% 
   filter(date >= lubridate::dmy("29-02-20")) %>%
   filter(higher %in% big_case_countries) %>% 
