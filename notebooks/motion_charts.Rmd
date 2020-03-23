@@ -328,7 +328,8 @@ animate(
   start_pause = 20, 
   end_pause = 20,
   fps = 10,
-  nframes = 300
+  nframes = 300,
+  height = 700, width = 700
 )
 
 ```
