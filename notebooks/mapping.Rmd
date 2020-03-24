@@ -1,0 +1,235 @@
+---
+title: "Geomapping using latlong data"
+output: html_notebook
+---
+
+
+# Aim
+
+To use the long-lat data to create maps of covid expansion from the CSSE dataset 
+
+To make this interactive? 
+
+
+# Packages 
+
+
+```{r}
+pacman::p_load(
+  tidyverse, 
+  googleway,
+  tidyverse, 
+  ggrepel,
+  ggspatial,
+  libwgeom,
+  sf,
+  rnaturalearth,
+  rnaturalearthdata,
+  wbstats
+  
+  
+  
+  
+               )
+```
+
+
+```{r}
+url_confirmed <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv"
+url_deaths <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Deaths.csv"
+url_recovered <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Recovered.csv"
+
+```
+
+
+```{r}
+n_confirmed <- 
+  read_csv(url_confirmed) %>% 
+    rename(
+      lower = `Province/State`,
+      higher = `Country/Region`
+    ) %>% 
+    gather(-lower, -higher, -Lat, -Long, key = "date", value = "n_confirmed") %>% 
+    mutate(date = mdy(date))
+
+n_recovered <- 
+  read_csv(url_recovered) %>% 
+    rename(
+      lower = `Province/State`,
+      higher = `Country/Region`
+    ) %>% 
+    gather(-lower, -higher, -Lat, -Long, key = "date", value = "n_recovered") %>% 
+    mutate(date = mdy(date))
+
+n_deaths <- 
+  read_csv(url_deaths) %>% 
+    rename(
+      lower = `Province/State`,
+      higher = `Country/Region`
+    ) %>% 
+    gather(-lower, -higher, -Lat, -Long, key = "date", value = "n_deaths") %>% 
+    mutate(date = mdy(date))
+
+tidied_data <- 
+  reduce(.x = list(n_confirmed, n_recovered, n_deaths), full_join, by = c("lower", "higher", "date", "Lat", "Long")) %>% 
+    gather(key = "type", value = "n", n_confirmed:n_deaths) %>% 
+    mutate(type = str_replace(type, pattern = "^n_", ""))
+
+
+```
+```{r}
+theme_set(theme_bw())
+
+```
+
+
+```{r}
+tidied_data %>% 
+  filter(date == max(date)) %>% 
+  filter(!is.na(higher) & is.na(lower)) %>% 
+  ggplot(aes(x = Long, y= Lat, size = n, colour = type, colour = type)) +
+  geom_point()
+  
+```
+
+
+```{r}
+# ?ne_countries 
+world <- ne_countries(scale = "medium", returnclass = "sf")
+class(world)
+```
+
+Visualise 
+
+```{r}
+world %>% 
+  ggplot() + 
+  geom_sf()
+
+```
+
+
+```{r}
+
+ggplot(data = world) +
+    geom_sf() +
+    geom_point(data = tidied_data, aes(x = Long, y = Lat, size = n, colour = type))
+
+```
+
+
+And only for 'higher'
+
+```{r}
+
+ggplot(data = world) +
+    geom_sf() +
+    geom_point(data = tidied_data %>% 
+                 filter(is.na(lower) & !is.na(higher)), 
+               aes(x = Long, y = Lat, size = n, colour = type))
+
+
+```
+
+Let's now try to join using some of the motion chart code used previously
+
+
+```{r}
+
+dta_country_continent_lookup <- read_csv("https://datahub.io/JohnSnowLabs/country-and-continent-codes-list/r/country-and-continent-codes-list-csv.csv") %>% 
+  mutate(
+    Continent_Code = case_when(
+      is.na(Continent_Code) ~ "NA", # NA was mis-parsed as NA rather than "NA" - North America!
+      TRUE                  ~ Continent_Code
+    )
+  )
+
+# There's some matching work required 
+tidied_country_continent_lookup <- 
+  dta_country_continent_lookup %>% 
+    mutate(
+      stripped_name = map_chr(Country_Name, str_extract, pattern = "^[^,]+"),
+      special_name  = case_when(
+        Country_Name == "Taiwan"                                        ~ "Taiwan*",
+        Country_Name == "Korea, Democratic People's Republic of"        ~ "Korea, North",
+        Country_Name == "Korea, Republic of"                            ~ "Korea, South",
+        TRUE                                                            ~ NA_character_
+      ),
+      name_to_match = coalesce(special_name, stripped_name) # First special name, then if NA stripped name
+    ) 
+
+tidied_country_continent_lookup
+```
+
+And population (using wbstats package)
+
+```{r, cache = TRUE}
+
+pop_wb <- wb(indicator = "SP.POP.TOTL") 
+
+
+```
+Can't get that to work, tried twice. But not essential. 
+
+
+```{r, eval = FALSE}
+
+code_population <- 
+  pop_wb %>%
+    mutate(date = as.numeric(date)) %>% 
+    group_by(iso3c) %>% 
+    filter(date == max(date)) %>% 
+    ungroup() %>% 
+    select(country_code = iso3c, population = value)
+
+code_population
+
+```
+
+So, let's try to match on this 
+
+```{r, eval = FALSE}
+country_tidied_data <- 
+  tidied_data %>% 
+  group_by(higher, date, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  rename(country = higher)
+
+country_tidied_data
+```
+
+Now let's try to join and see what still remains 
+
+
+```{r}
+
+# tidied_country_continent_lookup %>% 
+#   left_join(code_population, by = c("Three_Letter_Country_Code" = "country_code"))
+
+spat_tidied_data <- 
+  tidied_data %>% 
+    group_by(higher, Lat, Long, date, type) %>% 
+    summarise(n = sum(n)) %>% 
+    ungroup() %>% 
+    rename(country = higher) %>% 
+    left_join(
+      tidied_country_continent_lookup,
+      by = c("country" = "name_to_match")
+    ) %>%  
+    left_join(world, by = c("Three_Letter_Country_Code" = "wb_a3")) # there are a number of three letter country code, but using this for now
+
+spat_tidied_data
+```
+
+Now to plot as choropleth
+
+```{r}
+spat_tidied_data %>% 
+  filter(date == max(date)) %>% 
+  filter(type.x == "confirmed") %>% 
+  ggplot() + 
+  geom_sf(aes(geometry = geometry, fill = n)) + 
+  scale_fill_viridis( trans = "log10")
+
+```
