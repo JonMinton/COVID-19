@@ -670,7 +670,6 @@ Now to generalise.
 
 For all countries with at least 10 recorded deaths, and from the date of 10 deaths or more, what is the number of confirmed cases, and what would the predicted number of confirmed cases be if the correspondence between the number of cases and the number of deaths were as it has been in Hubei, China? 
 
-* To DO! 
 
 
 ```{r}
