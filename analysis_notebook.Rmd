@@ -117,6 +117,67 @@ ggsave(here("figures", "covid_19_confirmed_from15feb.png"), height = 20, width =
 
 ```
 
+How about confirmed deaths on same plot?
+
+```{r, fig.width = 10, fig.height = 8}
+tidied_data %>%
+  filter(type %in% c("confirmed", "deaths")) %>%  
+  filter(date > lubridate::dmy("15-02-2020")) %>% 
+  group_by(date, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  mutate(week = lubridate::week(date)) %>% 
+  ggplot(aes(x = date, y = n, group = type, colour = type, shape = type)) + 
+  geom_point()  + 
+  scale_y_log10(  
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+    ) + 
+  scale_x_date(date_breaks = "1 day") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  stat_smooth(
+    aes(group = paste0(week, type)),
+    method = "lm", se = FALSE
+  ) +
+  labs(
+    x = "Date", y = "Total cases confirmed (log scale)",
+    title = "Total worldwide COVID-19 cases confirmed by date after 15 Feb",
+    subtitle = "Log scale. Regression lines broken by week",
+    caption = "Source: Johns Hopkins CSSE"
+  )
+
+ggsave(here("figures", "covid_19_confirmed_and_dead_from15feb.png"), height = 20, width = 25, units = "cm", dpi = 300)
+  
+  
+
+```
+
+
+For each of these weeks, what's the gradient? 
+
+```{r}
+
+tidied_data %>%
+  filter(type %in% c("confirmed", "deaths")) %>%  
+  filter(date > lubridate::dmy("15-02-2020")) %>% 
+  group_by(date, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  mutate(week = lubridate::week(date))  %>% 
+  group_by(week, type) %>%
+  nest() %>% 
+  mutate(mod = map(data, ~lm(log(n) ~ date, data = .))) %>% 
+  mutate(slope = map(mod, ~coef(.) %>% pluck(2))) %>% 
+  select(week, type, slope) %>% 
+  unnest() %>% 
+  ggplot(aes(x = week, y = slope, group = type, shape = type, colour = type)) + 
+  geom_line() + geom_point() 
+
+ggsave(here("figures", "weekly_trends_confirmed_deaths.png"), width = 20, height = 20, units = "cm", dpi = 300)
+
+```
+
+
 Let's look some more about what the data could show 
 
 
