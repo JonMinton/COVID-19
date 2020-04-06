@@ -212,6 +212,66 @@ ggsave(here("figures", "confirmed_deaths_recovered.png"), height = 15, width = 2
 
 ```
 
+Rest of World, confirmed and deaths
+
+
+```{r}
+tidied_data %>% 
+  mutate(
+    place_category = case_when(
+      higher == "China" & lower == "Hubei" ~ "Hubei, China",
+      higher == "China" & lower != "Hubei" ~ "Rest of China",
+      TRUE                                 ~ "Rest of World"
+    )
+  ) %>% 
+  filter(place_category == "Rest of World") %>% 
+  filter(type %in% c("confirmed", "deaths")) %>% 
+  group_by(date, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = date, y =  n, group = type, linetype = type)) + 
+  geom_line() +
+  scale_y_log10(    
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+) + labs(
+  x = "Date", y = "Number of cases (Log scale)",
+  title = "Confirmed cases and deaths",
+  subtitle = "Rest of World",
+  caption = "Source: Johns Hopkins CSSE"
+) + 
+  scale_linetype_discrete("Type") + 
+  theme_minimal()
+
+```
+
+Since 1 March, what's the correspondence between deaths and confirmed? 
+
+```{r}
+tidied_data %>% 
+  mutate(
+    place_category = case_when(
+      higher == "China" & lower == "Hubei" ~ "Hubei, China",
+      higher == "China" & lower != "Hubei" ~ "Rest of China",
+      TRUE                                 ~ "Rest of World"
+    )
+  ) %>% 
+  filter(date >= dmy("01-03-2020")) %>% 
+  filter(place_category == "Rest of World") %>% 
+  filter(type %in% c("confirmed", "deaths")) %>% 
+  group_by(date, type) %>% 
+  summarise(n = sum(n)) %>% 
+  ungroup() %>% 
+  spread(type, n) %>% 
+  lm(log(deaths) ~ log(confirmed), data = . ) %>% 
+  summary()
+
+```
+
+So the R-squared is even higher than for China. 
+
+
+
 ```{r}
 # Countries with at least 100 confirmed cases on 8/3/20
 
