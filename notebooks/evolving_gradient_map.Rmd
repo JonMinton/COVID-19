@@ -1,0 +1,314 @@
+---
+title: "Roving gradient map"
+output: html_notebook
+---
+
+
+# Aim
+
+This notebook will develop from the scatterplot produced before showing slope against fit. It will use a roaming two week period and weekly intervals, connecting the points on a line. 
+
+
+# Data and packages
+
+
+```{r}
+pacman::p_load(lubridate,here,  ggrepel,tidyverse)
+
+```
+
+
+Now use time series and link to file 
+
+```{r}
+url_confirmed <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+
+url_deaths <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv"
+
+
+url_recovered <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv"
+
+```
+
+```{r}
+n_confirmed <- 
+  read_csv(url_confirmed) %>% 
+    select(-Lat, -Long) %>% 
+    rename(
+      lower = `Province/State`,
+      higher = `Country/Region`
+    ) %>% 
+    gather(-lower, -higher, key = "date", value = "n_confirmed") %>% 
+    mutate(date = mdy(date))
+
+n_recovered <- 
+  read_csv(url_recovered) %>% 
+    select(-Lat, -Long) %>% 
+    rename(
+      lower = `Province/State`,
+      higher = `Country/Region`
+    ) %>% 
+    gather(-lower, -higher, key = "date", value = "n_recovered") %>% 
+    mutate(date = mdy(date))
+
+n_deaths <- 
+  read_csv(url_deaths) %>% 
+    select(-Lat, -Long) %>% 
+    rename(
+      lower = `Province/State`,
+      higher = `Country/Region`
+    ) %>% 
+    gather(-lower, -higher, key = "date", value = "n_deaths") %>% 
+    mutate(date = mdy(date))
+
+tidied_data <- 
+  reduce(.x = list(n_confirmed, n_recovered, n_deaths), full_join, by = c("lower", "higher", "date")) %>% 
+    gather(key = "type", value = "n", n_confirmed:n_deaths) %>% 
+    mutate(type = str_replace(type, pattern = "^n_", "")) %>% 
+    replace_na(list(n = 0)) 
+
+
+```
+
+```{r}
+
+do_windowed_regression <- function(data, week, window_days = 14){
+  reg <- function(x) {lm(log(n) ~ date, data = x)}
+  safe_reg <- possibly(reg, otherwise = NULL)
+
+  filtered_data <- 
+    data %>% 
+    filter(n > 100) %>% 
+    mutate(week_of_date = week(date)) %>% 
+    filter(week_of_date <= week) %>% 
+    filter(between(date, max(date) - days(window_days), max(date))) 
+
+  num_cases <- filtered_data %>% 
+    filter(date == max(date)) %>% 
+    pull(n)
+  
+  mod <- 
+    filtered_data %>% safe_reg(.)
+  
+  if (class(mod) == 'lm') {
+    slope <- coefficients(mod)[["date"]]
+    rsq <- summary(mod)$r.squared
+    out <- 
+      tibble(
+        num_cases = num_cases,
+        slope = slope, r_squared = rsq
+      )
+  } else {
+    out <- tibble(
+      num_cases = NA_integer_,
+      slope = NA_real_, r_squared = NA_real_
+    )
+  }
+  out 
+}
+# 
+# get_gradient_fit <- function(dta){
+#   num_cases <- dta %>% 
+#     filter(date == max(date)) %>% 
+#     pull(n) 
+#   
+#   model <- lm(log(n) ~ date, data = dta)
+#   slope <- coefficients(model)[["date"]]
+#   rsq <- summary(model)$r.squared
+#   
+#   return(tibble(
+#     num_cases, slope = slope, r_squared = rsq
+#   ))
+# }
+
+min_week <- tidied_data %>% 
+  filter(date == min(date)) %>% 
+  pull("date") %>% 
+  week()
+
+
+max_week <- tidied_data %>% 
+  filter(date == max(date)) %>% 
+  pull("date") %>% 
+  week()
+
+windowed_mod_results <- 
+  tidied_data %>% 
+    filter(type == "confirmed") %>% 
+    group_by(higher, date) %>% 
+    summarise(n = sum(n)) %>% 
+    ungroup() %>% 
+    filter(n >= 100) %>% 
+    group_by(higher) %>% 
+    nest() %>% 
+    expand_grid(., week = min_week:max_week) %>% 
+    mutate(
+      results = map2(data, week, do_windowed_regression)
+    ) %>% 
+    select(higher, week, results) %>% 
+    unnest(results) %>% 
+    filter(!is.na(num_cases)) %>% 
+    filter(!is.na(slope)) 
+
+windowed_mod_results
+```
+
+
+And now to visualise 
+
+```{r}
+windowed_mod_results %>% 
+  group_by(higher) %>% 
+  mutate(max_cases = max(num_cases)) %>% 
+  filter(max_cases >= 10000) %>% 
+  mutate(week_cat = case_when(
+    week == min(week) ~ "first", 
+    week == max(week) ~ "last",
+    TRUE              ~ "middle"
+    )
+  ) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = r_squared, y = slope, alpha = week, group = higher)) + 
+#  geom_point(aes(size = log(num_cases))) +
+  geom_path(arrow = arrow(type = "closed", length = unit(5, "mm"))) +
+  geom_label(aes(label = week, size = log(num_cases), fill = week_cat),
+            fontface = "bold.italic"
+  ) + 
+  scale_fill_manual(values = c("lightblue", "lightgrey", "pink"), breaks = c("first", "middle", "last")) + 
+  theme_dark() + 
+  theme(
+    legend.position = "none", 
+    plot.title = element_text(face = "bold", size = unit(22, "cm")),
+    plot.subtitle = element_text(size = unit(16, "cm")),
+    axis.title = element_text(size = unit(16, "cm")),
+    axis.text = element_text(size = unit(16, "cm")),
+    strip.text = element_text(face = "bold.italic", size = unit(14, "cm"))
+  ) + 
+  facet_wrap(vars(higher)) + 
+  labs(
+    x = "Log-linearity of fit (R-squared)",
+    y = "Gradient of increase",
+    title = "Trajectory of slope of confirmed cases over time",
+    subtitle = "Numbers are week of year. Fit is over previous 14 days. Countries with at least 10,000 confirmed cases by latest date",
+    caption = "Source: Johns Hopkins CSSE"
+  )
+
+ggsave(here("figures", "grad_fit_by_week.png"), height = 40, width = 40, units = "cm", dpi = 300)
+
+```
+
+
+Now what does it look like for the lates week? 
+
+```{r}
+
+tmp <- 
+  windowed_mod_results %>% 
+    group_by(higher) %>% 
+    mutate(max_cases = max(num_cases)) %>% 
+    filter(max_cases >= 10000) 
+
+tmp_wide <- tmp %>% 
+  mutate(
+    week_type = case_when(
+      week == max(week) ~ "this", 
+      week == max(week) - 1 ~ "last", 
+      TRUE ~ NA_character_
+    )
+  ) %>% 
+  filter(!is.na(week_type)) %>% 
+  select(-week) %>% 
+  pivot_wider(
+    names_from = week_type, 
+    values_from = c(num_cases, slope, r_squared)
+  )
+
+tmp %>% 
+  filter(week == max(week)) %>% 
+  ggplot(aes(x = r_squared, y = slope)) + 
+  geom_point(aes(size = num_cases)) + 
+  geom_text_repel(aes(label = higher)) + 
+  scale_size_continuous(guide = "none") + 
+  geom_segment(
+    aes(
+      x = r_squared_last, xend = r_squared_this,
+      y = slope_last, yend = slope_this,
+      group = higher
+    ),
+      inherit.aes = FALSE,
+      data = tmp_wide, 
+      arrow = arrow(type = "closed", length = unit(5, "mm")),
+
+      alpha = 0.2
+  ) + 
+  
+  theme_dark() + 
+  labs(
+    x = "Log-linearity of fit (R-squared)",
+    y = "Gradient of increase",
+    title = "Trajectory of slope of confirmed cases in last two weeks",
+    subtitle = "Fit is over previous 14 days. Countries with at least 10,000 confirmed cases by latest date. Arrow shows change from most recent 14 days to one week previously. Dot size indicates number of confirmed cases",
+    caption = "Source: Johns Hopkins CSSE"
+  )
+
+ggsave(here("figures", "grad_fit_last_two_weeks.png"), height = 20, width = 20, units = "cm", dpi = 300)
+  
+
+
+```
+
+
+And as a time series? 
+
+
+```{r}
+ windowed_mod_results %>% 
+    group_by(higher) %>% 
+    mutate(max_cases = max(num_cases)) %>% 
+    filter(max_cases >= 10000) %>%
+    mutate(week_type = case_when(week == min(week) ~ "first", week == max(week) ~ "last", TRUE ~ "middle")) %>% 
+    ungroup() %>% 
+    ggplot(aes(x = week, y = slope, group = higher)) + 
+    geom_point(aes(size = log(num_cases), colour = week_type, fill = week_type), alpha = 0.5) + geom_line(alpha = 0.3) +
+    scale_fill_manual(values = c("blue", "grey","red"), breaks = c("first", "middle", "last")) + 
+    scale_color_manual(values = c("blue", "grey","red"), breaks = c("first", "middle", "last")) + 
+
+    theme(legend.position = "none"#,
+    # plot.title = element_text(face = "bold", size = unit(14, "cm")),
+    # plot.subtitle = element_text(size = unit(16, "cm")),
+    # axis.title = element_text(size = unit(16, "cm")),
+    # axis.text = element_text(size = unit(16, "cm")),
+    # strip.text = element_text(face = "bold.italic", size = unit(14, "cm"))
+          
+          ) + 
+    geom_text_repel(
+      aes(label = higher),
+      data =  windowed_mod_results %>% 
+      group_by(higher) %>% 
+      mutate(max_cases = max(num_cases)) %>% 
+      filter(max_cases >= 10000) %>%
+      filter(week == min(week)),
+      nudge_x = -2,
+      fontface = "italic", 
+      color = "darkgrey"
+    ) + 
+    geom_text_repel(
+      aes(label = higher),
+      data =  windowed_mod_results %>% 
+      group_by(higher) %>% 
+      mutate(max_cases = max(num_cases)) %>% 
+      filter(max_cases >= 10000) %>%
+      filter(week == max(week)),
+      nudge_x = 3,
+      fontface = "italic", 
+      color = "darkgrey"
+    ) +
+  scale_x_continuous(expand = expansion(add = 5)) + 
+  labs(x = "Week of 2020", y = "Gradient of increase in cumulative cases (log scale)",
+       title = "Weekly change in two week gradient in confirmed cases",
+       subtitle = "Countries with at least 10,000 confirmed cases. Blue circles: first week with 10,000 cases. Red: Last week. Size proportional to number of cases"
+       )
+
+ggsave(here("figures", "slope_by_week.png"), height = 25, width = 35, units = "cm", dpi = 300)
+
+```
