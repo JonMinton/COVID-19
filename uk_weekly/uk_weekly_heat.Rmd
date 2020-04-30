@@ -1,0 +1,112 @@
+---
+title: "UK Weekly deaths"
+output: html_notebook
+---
+
+# Aim 
+
+To visualise weekly deaths by year as a heatmap, using data supplied by Harry Kennard. 
+
+The data source is [here](https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/adhocs/005459dailydeathoccurrencesenglandregionsofenglandandwales1970to2014)
+
+
+
+```{r}
+pacman::p_load(readxl, here, tidyverse, HMDHFDplus, RcppRoll)
+
+```
+
+Get data for pop counts (once)
+
+```{r}
+#HMDHFDplus::getHMDitemavail("GBRTENW", userInput(), userInput())
+N <- HMDHFDplus::readHMDweb("GBRTENW", "Population", userInput(), userInput())
+
+pop_year <- N %>% 
+  select(year = Year, age = Age, Total1, Total2) %>% 
+  mutate(total = (Total1 + Total2) / 2) %>% 
+  group_by(year) %>% 
+  summarise(N = sum(total)) %>% 
+  ungroup()
+```
+
+```{r}
+dta_upto_2014 <- read_excel(
+  here("uk_weekly", "Weekly Deaths (Edit - Dr Harry Kennard, UCL).xlsx"), 
+  sheet = "National daily deaths", range = "A1:H16437"
+  ) %>% 
+  select(year = Year, yrday = `Day of Year`, day = Day, wkday = `Day of Week`, n_daily = Deaths, n_weekly_excel = `Sum (n-6, n)`) 
+
+n_weekly_r <-  RcppRoll::roll_sum(dta_upto_2014$n_daily, n = 7)
+
+dta_upto_2014 <- dta_upto_2014 %>% 
+  mutate(n_weekly_r = c(rep(NA, 6), n_weekly_r))
+rm(n_weekly_r)
+
+weekly_dta_upto_2014 <- 
+  dta_upto_2014 %>% 
+    filter(wkday == 7) %>% 
+    mutate(week = (yrday %/% 7) + 1) %>% 
+    select(year, week, n = n_weekly_r)
+
+```
+
+```{r}
+weekly_dta_upto_2014 %>% 
+  ggplot(aes(x = year, y = week, fill = n)) + 
+  geom_tile() + 
+  scale_fill_viridis_c()
+
+```
+
+And left join to pop_year 
+
+```{r}
+weekly_dta_upto_2014 %>% 
+  left_join(pop_year, by = "year") %>% 
+  mutate(mr = n / N) %>% 
+  ggplot(aes(x = year, y = week, fill = mr)) + 
+  geom_tile() + 
+  scale_fill_viridis_c()
+
+```
+
+
+
+Now latest years (.n.b I've added the Chart Source to move back rows in cols V onwards"")
+
+
+```{r}
+dta_latest <- read_excel(
+  here("uk_weekly", "Weekly Deaths (Edit - Dr Harry Kennard, UCL).xlsx"), 
+  sheet = "Chart Source", range = "K1:Q53"
+  ) %>% 
+  rename(week = `Week of year`) %>% 
+  pivot_longer(-week, names_to = "year", values_to = "n") %>% 
+  mutate(year = as.numeric(year)) %>% 
+  select(year, week, n)
+
+```
+
+
+Join and visualise
+
+```{r}
+dta_all <- 
+  weekly_dta_upto_2014 %>% 
+    bind_rows(dta_latest)
+
+```
+
+
+```{r}
+dta_all %>% 
+  ggplot(aes(x = year, y = week, fill = n)) + 
+  geom_tile() + 
+  scale_fill_viridis_c("Number of deaths in week",na.value = NA) +
+  theme_bw() + 
+  labs(x = "Year", y = "Week of year") 
+
+ggsave(here("uk_weekly", "weekly_deaths_enw.png"), height = 25, width = 30, units = "cm", dpi = 300)
+
+```
