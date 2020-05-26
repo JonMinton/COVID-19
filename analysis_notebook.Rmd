@@ -918,6 +918,6 @@ tidied_data %>%
   ) + 
   theme(axis.text.x = element_text(angle = 45))
   
-ggsave(here("figures", "confirmed_against_predicted_from_deaths.png"), height = 20, width = 30, dpi = 300, units = "cm")
+ggsave(here("figures", "confirmed_against_predicted_from_deaths.png"), height = 50, width = 50, dpi = 300, units = "cm")
 
 ```
