@@ -349,7 +349,7 @@ tidied_data %>%
   ggplot(aes(x = r_squared, y = slope, alpha = log(num_cases))) + 
   geom_point() + 
   theme(legend.position = "none") + 
-  scale_x_continuous(limits = c(0.7, 1.0)) +
+  scale_x_continuous(limits = c(0.3, 1.0)) +
   geom_text_repel(aes(label = higher), alpha = 1) + 
   labs(
     x = "R-squared (Higher= more log-linear)",
