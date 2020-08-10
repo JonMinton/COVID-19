@@ -98,7 +98,7 @@ tidied_data %>%
     breaks = scales::trans_breaks("log10", function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
     ) + 
-  scale_x_date(date_breaks = "1 day") +
+  scale_x_date(date_breaks = "1 week") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   stat_smooth(
     aes(group = week),
