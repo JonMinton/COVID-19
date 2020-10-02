@@ -163,7 +163,7 @@ tidied_data %>%
   geom_line() + geom_point()  + 
   expand_limits(y = 0)
 
-ggsave(here("figures", "weekly_trends_confirmed_deaths.png"), width = 20, height = 20, units = "cm", dpi = 300)
+ggsave(here("figures", "weekly_trends_confirmed_deaths.png"), width = 30, height = 20, units = "cm", dpi = 300)
 
 ```
 
